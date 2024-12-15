@@ -1,16 +1,42 @@
-function createElement(type, props, ...children) {
+// 定义基本的 Props 接口
+interface Props {
+  [key: string]: any;
+  children?: Element[];
+  style?: { [key: string]: string };
+}
+
+// 定义元素接口
+interface Element {
+  type: string;
+  props: Props;
+}
+
+// 定义文本元素接口
+interface TextElement extends Element {
+  type: "TEXT_ELEMENT";
+  props: {
+    nodeValue: string;
+    children: [];
+  };
+}
+
+function createElement(
+  type: string,
+  props: Props | null,
+  ...children: (Element | string | number | boolean)[]
+): Element {
   return {
     type,
     props: {
       ...props,
       children: children.map((child) =>
-        typeof child === "object" ? child : createTextElement(child)
+        typeof child === "object" ? child : createTextElement(child.toString())
       ),
     },
   };
 }
 
-function createTextElement(text: string) {
+function createTextElement(text: string): TextElement {
   return {
     type: "TEXT_ELEMENT",
     props: {
@@ -20,22 +46,21 @@ function createTextElement(text: string) {
   };
 }
 
-function render(element, container) {
-  const dom =
-    element.type == "TEXT_ELEMENT"
+function render(element: Element, container: HTMLElement): void {
+  const dom: HTMLElement | Text =
+    element.type === "TEXT_ELEMENT"
       ? document.createTextNode("")
       : document.createElement(element.type);
 
   Object.keys(element.props).forEach((name) => {
     if (name === "style" && typeof element.props[name] === "object") {
-      // 如果是 style 属性，将其应用到 DOM 元素
-      Object.assign(dom.style, element.props[name]);
+      Object.assign((dom as HTMLElement).style, element.props[name]);
     } else if (name !== "children") {
-      dom[name] = element.props[name];
+      (dom as any)[name] = element.props[name];
     }
   });
 
-  element.props.children.forEach((child) => render(child, dom));
+  element.props.children?.forEach((child) => render(child, dom as HTMLElement));
 
   container.appendChild(dom);
 }

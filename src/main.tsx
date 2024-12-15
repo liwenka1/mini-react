@@ -7,5 +7,5 @@ const element = (
   </div>
 );
 
-const container = document.getElementById("root");
+const container = document.getElementById("root")!;
 MiniReact.render(element, container);
