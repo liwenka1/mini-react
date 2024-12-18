@@ -1,31 +1,35 @@
-import type { Element } from "../types";
+import type { Action, Element, Fiber, FunctionComponent, Hook } from "../types";
 
 import { createDom, updateDom } from "./dom";
 import { createElement } from "./jsx-element";
 
 // 全局变量
-let currentRoot: any = null;
-let wipRoot: any = null;
-let deletions: any[] | null = null;
-let nextUnitOfWork: any = null;
-let wipFiber: any = null;
-let hookIndex: any = null;
+let currentRoot: Fiber | null = null;
+let wipRoot: Fiber | null = null;
+let deletions: Fiber[] | null = null;
+let nextUnitOfWork: Fiber | null = null;
+let wipFiber: Fiber | null = null;
+let hookIndex: number = 0;
 
 // DOM 提交相关逻辑
 function commitRoot() {
-  deletions?.forEach(commitWork);
-  commitWork(wipRoot?.child);
+  if (deletions) {
+    deletions.forEach(commitWork);
+  }
+  if (wipRoot?.child) {
+    commitWork(wipRoot.child);
+  }
   currentRoot = wipRoot;
   wipRoot = null;
 }
-function commitWork(fiber: any) {
+function commitWork(fiber: Fiber | null) {
   if (!fiber) {
     return;
   }
 
   let domParentFiber = fiber.parent;
-  while (!domParentFiber.dom) {
-    domParentFiber = domParentFiber.parent;
+  while (!domParentFiber?.dom) {
+    domParentFiber = domParentFiber?.parent || null;
   }
 
   const domParent = domParentFiber.dom;
@@ -34,7 +38,7 @@ function commitWork(fiber: any) {
   }
 
   if (fiber.effectTag === "UPDATE" && fiber.dom !== null) {
-    updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+    updateDom(fiber.dom, fiber.alternate?.props || {}, fiber.props || {});
   }
 
   if (fiber.effectTag === "DELETION") {
@@ -44,19 +48,19 @@ function commitWork(fiber: any) {
   commitWork(fiber.child);
   commitWork(fiber.sibling);
 }
-function commitDeletion(fiber: any, domParent: any) {
+function commitDeletion(fiber: Fiber, domParent: Node) {
   if (fiber.dom) {
     domParent.removeChild(fiber.dom);
-  } else {
+  } else if (fiber.child) {
     commitDeletion(fiber.child, domParent);
   }
 }
 
 // 工作循环相关逻辑
-function workLoop(deadline: any) {
+function workLoop(deadline: IdleDeadline) {
   let shouldYield = null;
   while (nextUnitOfWork && !shouldYield) {
-    nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork) || null;
     shouldYield = deadline.timeRemaining() < 1;
   }
 
@@ -66,7 +70,7 @@ function workLoop(deadline: any) {
 
   requestIdleCallback(workLoop);
 }
-function performUnitOfWork(fiber: any) {
+function performUnitOfWork(fiber: Fiber): Fiber | void {
   const isFunctionComponent = fiber.type instanceof Function;
   if (isFunctionComponent) {
     updateFunctionComponent(fiber);
@@ -78,7 +82,7 @@ function performUnitOfWork(fiber: any) {
     return fiber.child;
   }
 
-  let nextFiber = fiber;
+  let nextFiber: Fiber | null = fiber;
 
   while (nextFiber) {
     if (nextFiber.sibling) {
@@ -88,28 +92,25 @@ function performUnitOfWork(fiber: any) {
     nextFiber = nextFiber.parent;
   }
 }
-function updateFunctionComponent(fiber: any) {
+function updateFunctionComponent(fiber: Fiber) {
   wipFiber = fiber;
   hookIndex = 0;
   wipFiber.hooks = [];
-  const children = [fiber.type(fiber.props)];
+  const children = [(fiber.type as FunctionComponent)(fiber.props)];
   reconcileChildren(fiber, children);
 }
-function updateHostComponent(fiber: any) {
+function updateHostComponent(fiber: Fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
-  reconcileChildren(fiber, fiber.props.children);
+  reconcileChildren(fiber, fiber.props?.children || []);
 }
 requestIdleCallback(workLoop);
 
 // Hooks
-function useState(initial: any) {
-  const oldHook =
-    wipFiber.alternate &&
-    wipFiber.alternate.hooks &&
-    wipFiber.alternate.hooks[hookIndex];
-  const hook = {
+function useState<S>(initial: S): [S, (action: Action<S>) => void] {
+  const oldHook = wipFiber?.alternate?.hooks?.[hookIndex];
+  const hook: Hook = {
     state: oldHook ? oldHook.state : initial,
     queue: [],
   };
@@ -119,25 +120,29 @@ function useState(initial: any) {
     hook.state = action(hook.state);
   });
 
-  const setState = (action: never) => {
+  const setState = (action: Action<S>) => {
     hook.queue.push(action);
     wipRoot = {
-      dom: currentRoot.dom,
-      props: currentRoot.props,
+      dom: currentRoot?.dom || null,
+      props: currentRoot?.props || null,
       alternate: currentRoot,
+      type: currentRoot?.type || null,
+      parent: null,
+      child: null,
+      sibling: null,
     };
     nextUnitOfWork = wipRoot;
     deletions = [];
   };
 
-  wipFiber.hooks.push(hook);
+  wipFiber?.hooks?.push(hook);
   hookIndex++;
 
   return [hook.state, setState];
 }
 
 // Fiber 协调相关逻辑
-function reconcileChildren(wipFiber: any, elements: any) {
+function reconcileChildren(wipFiber: Fiber, elements: Element[]) {
   let index = 0;
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
   let prevSibling: any = null;
@@ -147,18 +152,20 @@ function reconcileChildren(wipFiber: any, elements: any) {
     (oldFiber !== null && oldFiber !== undefined)
   ) {
     const element = elements[index];
-    let newFiber = null;
+    let newFiber: Fiber | null = null;
 
     const sameType = oldFiber && element && oldFiber.type === element.type;
 
     if (sameType) {
       newFiber = {
-        type: oldFiber.type,
+        type: oldFiber?.type || null,
         props: element.props,
-        dom: oldFiber.dom,
+        dom: oldFiber?.dom || null,
         parent: wipFiber,
         alternate: oldFiber,
         effectTag: "UPDATE",
+        child: null,
+        sibling: null,
       };
     }
 
@@ -170,6 +177,8 @@ function reconcileChildren(wipFiber: any, elements: any) {
         parent: wipFiber,
         alternate: null,
         effectTag: "PLACEMENT",
+        child: null,
+        sibling: null,
       };
     }
 
@@ -201,6 +210,10 @@ function render(element: Element, container: HTMLElement): void {
       children: [element],
     },
     alternate: currentRoot,
+    type: "div",
+    parent: null,
+    child: null,
+    sibling: null,
   };
   deletions = [];
   nextUnitOfWork = wipRoot;

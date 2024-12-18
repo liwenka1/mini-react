@@ -5,7 +5,7 @@ function Counter() {
   return (
     <div>
       <h1>Count: {state}</h1>
-      <button onClick={() => setState((c: never) => c + 1)}>点我+1</button>
+      <button onClick={() => setState((c: any) => c + 1)}>点我+1</button>
       <h2 style={{ color: "red" }}>red</h2>
     </div>
   );

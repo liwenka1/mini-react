@@ -20,14 +20,23 @@ export interface TextElement extends Element {
   };
 }
 
-// 定义 Fiber 类型
+export type FunctionComponent<P = any> = (props: P) => Element;
+
 export interface Fiber {
-  type: string;
-  props: any;
-  dom: HTMLElement | Text | null;
+  type: string | FunctionComponent | null;
+  props: Props | null;
+  dom: Node | null;
   parent: Fiber | null;
   child: Fiber | null;
   sibling: Fiber | null;
   alternate: Fiber | null;
   effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
+  hooks?: Hook[];
 }
+
+export interface Hook {
+  state: any;
+  queue: Action[];
+}
+
+export type Action<S = any> = S | ((prevState: S) => S);
