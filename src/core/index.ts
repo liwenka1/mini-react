@@ -8,6 +8,8 @@ let currentRoot: any = null;
 let wipRoot: any = null;
 let deletions: any[] | null = null;
 let nextUnitOfWork: any = null;
+let wipFiber: any = null;
+let hookIndex: any = null;
 
 // DOM 提交相关逻辑
 function commitRoot() {
@@ -21,7 +23,12 @@ function commitWork(fiber: any) {
     return;
   }
 
-  const domParent = fiber.parent.dom;
+  let domParentFiber = fiber.parent;
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+
+  const domParent = domParentFiber.dom;
   if (fiber.effectTag === "PLACEMENT" && fiber.dom !== null) {
     domParent.appendChild(fiber.dom);
   }
@@ -31,11 +38,18 @@ function commitWork(fiber: any) {
   }
 
   if (fiber.effectTag === "DELETION") {
-    domParent.removeChild(fiber.dom);
+    commitDeletion(fiber, domParent);
   }
 
   commitWork(fiber.child);
   commitWork(fiber.sibling);
+}
+function commitDeletion(fiber: any, domParent: any) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else {
+    commitDeletion(fiber.child, domParent);
+  }
 }
 
 // 工作循环相关逻辑
@@ -53,12 +67,12 @@ function workLoop(deadline: any) {
   requestIdleCallback(workLoop);
 }
 function performUnitOfWork(fiber: any) {
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber);
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber);
   }
-
-  const elements = fiber.props.children;
-  reconcileChildren(fiber, elements);
 
   if (fiber.child) {
     return fiber.child;
@@ -74,7 +88,53 @@ function performUnitOfWork(fiber: any) {
     nextFiber = nextFiber.parent;
   }
 }
+function updateFunctionComponent(fiber: any) {
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
+  const children = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+function updateHostComponent(fiber: any) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+  reconcileChildren(fiber, fiber.props.children);
+}
 requestIdleCallback(workLoop);
+
+// Hooks
+function useState(initial: any) {
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex];
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  };
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action: Function) => {
+    hook.state = action(hook.state);
+  });
+
+  const setState = (action: never) => {
+    hook.queue.push(action);
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    };
+    nextUnitOfWork = wipRoot;
+    deletions = [];
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+
+  return [hook.state, setState];
+}
 
 // Fiber 协调相关逻辑
 function reconcileChildren(wipFiber: any, elements: any) {
@@ -149,4 +209,5 @@ function render(element: Element, container: HTMLElement): void {
 export const MiniReact = {
   createElement,
   render,
+  useState,
 };
