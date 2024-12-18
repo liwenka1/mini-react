@@ -15,6 +15,7 @@ const rerender = (value: string): void => {
     <div>
       <input onInput={updateValue} value={value} />
       <h2>Hello {value}</h2>
+      <h3 style={{ color: "red" }}>red</h3>
     </div>
   );
   if (container) {

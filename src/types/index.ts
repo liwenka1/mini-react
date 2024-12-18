@@ -19,3 +19,15 @@ export interface TextElement extends Element {
     children: [];
   };
 }
+
+// 定义 Fiber 类型
+export interface Fiber {
+  type: string;
+  props: any;
+  dom: HTMLElement | Text | null;
+  parent: Fiber | null;
+  child: Fiber | null;
+  sibling: Fiber | null;
+  alternate: Fiber | null;
+  effectTag?: "PLACEMENT" | "UPDATE" | "DELETION";
+}

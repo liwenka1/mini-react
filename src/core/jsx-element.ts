@@ -1,3 +1,4 @@
+// 处理JSX元素创建相关的逻辑
 import type { Element, Props, TextElement } from "../types";
 
 export function createElement(
