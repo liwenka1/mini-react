@@ -4,21 +4,19 @@ import { createDom, updateDom } from "./dom";
 import { createElement } from "./jsx-element";
 
 // 全局变量
-let currentRoot: Fiber | null = null;
-let wipRoot: Fiber | null = null;
-let deletions: Fiber[] | null = null;
-let nextUnitOfWork: Fiber | null = null;
-let wipFiber: Fiber | null = null;
-let hookIndex: number = 0;
+let currentRoot: Fiber | null = null; // 当前已渲染的 Fiber 树的根节点
+let wipRoot: Fiber | null = null; // 当前正在构建的 Fiber 树的根节点（"work in progress")
+let deletions: Fiber[] | null = null; // 需要删除的 Fiber 节点数组
+let nextUnitOfWork: Fiber | null = null; // 下一个需要处理的 Fiber 节点
+let wipFiber: Fiber | null = null; // 当前正在处理的 Fiber 节点
+let hookIndex: number = 0; // 当前 Hook 的索引
 
 // DOM 提交相关逻辑
 function commitRoot() {
-  if (deletions) {
-    deletions.forEach(commitWork);
-  }
-  if (wipRoot?.child) {
-    commitWork(wipRoot.child);
-  }
+  deletions?.forEach(commitWork);
+
+  commitWork(wipRoot?.child || null);
+
   currentRoot = wipRoot;
   wipRoot = null;
 }
@@ -210,7 +208,7 @@ function render(element: Element, container: HTMLElement): void {
       children: [element],
     },
     alternate: currentRoot,
-    type: "div",
+    type: null,
     parent: null,
     child: null,
     sibling: null,
